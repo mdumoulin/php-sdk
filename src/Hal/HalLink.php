@@ -1,6 +1,7 @@
 <?php
 namespace ShoppingFeed\Sdk\Hal;
 
+use GuzzleHttp\Psr7\MultipartStream;
 use Psr\Http\Message\ResponseInterface;
 use ShoppingFeed\Sdk\Http\UriTemplate;
 use ShoppingFeed\Sdk\Resource\Json;
@@ -119,7 +120,7 @@ class HalLink
     {
         $instance       = clone $this;
         $instance->href = rtrim($instance->getUri($variables), '/') .
-                          '/' . ltrim($path, '/');
+            '/' . ltrim($path, '/');
 
         return $instance;
     }
@@ -262,15 +263,23 @@ class HalLink
      *
      * @return \Psr\Http\Message\RequestInterface
      */
-    public function createRequest($method, array $variables = [], $body = null)
+    public function createRequest($method, array $variables = [], $body = null, $headers = [])
     {
-        $uri     = $this->getUri($variables);
-        $method  = strtoupper($method);
-        $headers = [];
+        $uri    = $this->getUri($variables);
+        $method = strtoupper($method);
 
-        if ((null !== $body && '' !== $body) && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'])) {
-            $headers['Content-Type'] = 'application/json';
-            $body                    = Json::encode($body);
+        $hasBody = null !== $body && '' !== $body && ! $body instanceof MultipartStream;
+
+        if ($hasBody && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'])) {
+            if (! isset($headers['Content-Type'])) {
+                $headers['Content-Type'] = 'application/json';
+            }
+
+            switch ($headers['Content-Type']) {
+                case 'application/json':
+                    $body = Json::encode($body);
+                    break;
+            }
         }
 
         return $this->client->createRequest($method, $uri, $headers, $body);
